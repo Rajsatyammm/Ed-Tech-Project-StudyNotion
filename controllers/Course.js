@@ -1,9 +1,8 @@
 const Course = require('../models/Course')
 const User = require('../models/User')
-const Tag = require('../models/Tag')
+const Category = require('../models/Category')
 require('dotenv').config()
-const uploadImageToCloudinary = require('../utils/imageUploader')
-
+const uploadToCloudinary = require('../utils/Uploader')
 
 
 exports.createCourse = async (req, res) => {
@@ -15,13 +14,14 @@ exports.createCourse = async (req, res) => {
             whatYouWillLearn,
             price,
             tag,
+            category,
         } = req.body;
 
         // fetch thumbnail
         const { thumbnail } = req.files.image;
 
         // validate the data
-        if (!courseName || !courseDescription || !whatYouWillLearn || !price || !tag) {
+        if (!courseName || !courseDescription || !whatYouWillLearn || !price || !tag || !category) {
             return res.status().json({
                 success: false,
                 message: 'Please fill all the entry of tags'
@@ -39,9 +39,9 @@ exports.createCourse = async (req, res) => {
             })
         }
 
-        // validate tag
-        const tagDetails = await Tag.findById(tag)
-        if (!tagDetails) {
+        // validate category
+        const categoryDetails = await Category.findById(category)
+        if (!categoryDetails) {
             return res.status().json({
                 success: false,
                 message: 'Tag details not found'
@@ -53,7 +53,7 @@ exports.createCourse = async (req, res) => {
         const savedData = Course.create({})
 
         // upload image to cloudinary
-        const thumbnailImage = await uploadImageToCloudinary(thumbnail, process.env.CLOUDINARY_FOLDER_NAME)
+        const thumbnailImage = await uploadToCloudinary(thumbnail, process.env.CLOUDINARY_FOLDER_NAME)
 
         // create an entry for new course
         const newCourse = await Course.create({
@@ -63,7 +63,7 @@ exports.createCourse = async (req, res) => {
             whatYouWillLearn,
             price,
             thumbnail: thumbnailImage.secure_url,
-            tag: tagDetails._id,
+            category: categoryDetails._id,
         })
 
         // add the new course to the user schema of instructor
@@ -73,9 +73,9 @@ exports.createCourse = async (req, res) => {
             { new: true },
         )
 
-        // update the tag schema by putting the new courses in the specific tag 
-        const updatedTagData = await Tag.findOneAndUpdate(
-            { name: tag },
+        // update the category schema by putting the new courses in the specific category 
+        const updatedCategoryData = await Category.findOneAndUpdate(
+            { name: category },
             { $push: { courses: newCourse._id } },
             { new: true }
         )
@@ -107,7 +107,9 @@ exports.showAllCourses = async (req, res) => {
                 courseContent: true,
                 studentsEnrolled: true,
             }
-        ).populate('instructor').exec()
+        )
+            .populate('instructor')
+            .exec()
 
         return res.status(200).json({
             success: true,
@@ -116,7 +118,7 @@ exports.showAllCourses = async (req, res) => {
         })
 
     } catch (e) {
-         
+
         return res.json(400).json({
             success: false,
             message: 'Error occured while fetching the course data'
