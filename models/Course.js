@@ -33,7 +33,7 @@ const courseSchema = new mongoose.Schema(
         },
         category: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "Tag",
+            ref: "Category",
         },
         tag: {
             type: String,

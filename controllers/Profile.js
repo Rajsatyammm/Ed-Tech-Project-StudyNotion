@@ -79,7 +79,7 @@ exports.deleteProfile = async (req, res) => {
         await Profile.findByIdAndDelete({ _id: userData.additionalDetails })
 
         // TODO: unenroll from all the courses of the particular student
-        
+
         // const courseData = userData.courses
         // courseData.map(async (courseId) => {
         //     await Course.findByIdAndRemove(
@@ -109,6 +109,7 @@ exports.deleteProfile = async (req, res) => {
 }
 
 
+// getalluserdetails
 exports.getAllUserDetails = async (req, res) => {
     try {
 
