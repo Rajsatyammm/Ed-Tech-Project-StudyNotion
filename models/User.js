@@ -31,6 +31,14 @@ const userSchema = mongoose.Schema(
             ref: "Profile",
             require: true,
         },
+        active: {
+            type: Boolean,
+            default: true,
+        },
+        approved: {
+            type: Boolean,
+            default: true,
+        },
         courses: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "Course",
@@ -46,11 +54,12 @@ const userSchema = mongoose.Schema(
             required: true,
 
         },
-        courseProgress: {
+        courseProgress: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "CourseProgress",
-        }
-    }
+        }]
+    },
+    { timestamps: true }
 )
 
 

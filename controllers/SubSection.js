@@ -24,6 +24,7 @@ exports.createSubSection = async (req, res) => {
             process.env.FOLDER_NAME
         )
         console.log(uploadDetails)
+
         // Create a new sub-section with the necessary information
         const SubSectionDetails = await SubSection.create({
             title: title,
@@ -53,6 +54,7 @@ exports.createSubSection = async (req, res) => {
     }
 }
 
+// updateSubSection
 exports.updateSubSection = async (req, res) => {
     try {
         const { sectionId, subSectionId, title, description } = req.body
@@ -105,6 +107,7 @@ exports.updateSubSection = async (req, res) => {
     }
 }
 
+// deleteSubSection
 exports.deleteSubSection = async (req, res) => {
     try {
         const { subSectionId, sectionId } = req.body

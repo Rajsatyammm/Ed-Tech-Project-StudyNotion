@@ -1,6 +1,6 @@
 const Section = require('../models/Section')
 const Course = require('../models/Course')
-
+const SubSection = require('../models/SubSection')
 
 // create section
 exports.createSection = async (req, res) => {
@@ -39,7 +39,8 @@ exports.createSection = async (req, res) => {
 
         return res.status(500).json({
             success: false,
-            message: 'unable to create section'
+            message: 'unable to create section',
+            error: e.message,
         })
     }
 }
@@ -50,7 +51,7 @@ exports.updateSection = async (req, res) => {
     try {
 
         // fetch data from req body
-        const { sectionName, sectionId } = req.body
+        const { sectionName, sectionId, courseId } = req.body
 
         // validate
         if (!sectionId || !sectionName) {
@@ -61,19 +62,34 @@ exports.updateSection = async (req, res) => {
         }
 
         // update
-        const updatedData = await Section.findByIdAndUpdate(sectionId, { sectionName: sectionName }, { new: true })
+        const section = await Section.findByIdAndUpdate(
+            sectionId,
+            { sectionName: sectionName },
+            { new: true }
+        )
+
+        const course = await Course.findById(courseId)
+            .populate({
+                path: "courseContent",
+                populate: {
+                    path: "subSection",
+                },
+            })
+            .exec()
 
         // return response
         return res.status(200).json({
             success: true,
-            message: 'section updated successfully'
+            message: section,
+            data: course,
         })
 
     } catch (e) {
 
         return res.status(500).json({
             success: false,
-            message: 'error occured while updating section'
+            message: 'error occured while updating section',
+            error: e.message,
         })
     }
 }
@@ -83,9 +99,8 @@ exports.updateSection = async (req, res) => {
 exports.deleteSection = async (req, res) => {
     try {
 
-        // fetch data from req params
-        // assuming that we are sending ID in params
-        const { sectionId } = req.params;
+        // fetch data from req body
+        const { sectionId, courseId } = req.body;
 
         // validate
         if (!sectionId) {
@@ -95,21 +110,41 @@ exports.deleteSection = async (req, res) => {
             })
         }
 
-        // TODO : do we need to delete the entry from the course schema
-        
-        // remove from course schema
-        // const updatedCourseData = await Course.findByIdAndDelete(
-        //     {courseContent: sectionId},
-        //     {$pull, {}}
-        //     )
+        await Course.findByIdAndUpdate(courseId, {
+            $pull: {
+                courseContent: sectionId,
+            },
+        })
 
-        // delete the section
-        await Section.findByIdAndDelete({ sectionId: sectionId })
+        const section = await Section.findById(sectionId)
+        console.log(sectionId, courseId)
+        if (!section) {
+            return res.status(404).json({
+                success: false,
+                message: "Section not found",
+            })
+        }
+
+        // Delete the associated subsections
+        await SubSection.deleteMany({ _id: { $in: section.subSection } })
+
+        await Section.findByIdAndDelete(sectionId)
+
+        // find the updated course and return it
+        const course = await Course.findById(courseId)
+            .populate({
+                path: "courseContent",
+                populate: {
+                    path: "subSection",
+                },
+            })
+            .exec()
 
         // return response
         return res.status(200).json({
             success: true,
             message: 'Section deleted successfully',
+            data: course,
         })
 
     } catch (e) {
@@ -117,6 +152,7 @@ exports.deleteSection = async (req, res) => {
         return res.status(500).json({
             success: true,
             message: 'error occured while updating section',
+            error: e.message,
         })
     }
 }

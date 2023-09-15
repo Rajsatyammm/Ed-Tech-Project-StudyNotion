@@ -39,9 +39,9 @@ app.use(
 )
 
 // route
-app.use('api/v1/auth', userRoute)
-app.use('api/v1/profile', profileRoute)
-app.use('api/v1/course', courseRoute)
+app.use('/api/v1/user', userRoute)
+app.use('/api/v1/profile', profileRoute)
+app.use('/api/v1/course', courseRoute)
 // app.use('api/v1/payment', paymentRoute)
 
 // default route

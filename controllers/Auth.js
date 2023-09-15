@@ -8,21 +8,23 @@ require('dotenv').config()
 
 
 // send OTP
-
 exports.sendOTP = async (req, res) => {
     try {
 
         // fetch email from req body
         const { email } = req.body;
+
+        // validation
         if (!email) {
             return res.status(400).json({
                 success: false,
-                message: 'email not found'
+                message: 'email not found',
             })
         }
 
         // check user is already present 
-        const checkUserPresent = await User.find({ email })
+        const checkUserPresent = await User.findOne({ email })
+        console.log(checkUserPresent)
         if (checkUserPresent) {
             return res.status(401).json({
                 success: false,
@@ -117,7 +119,7 @@ exports.signUp = async (req, res) => {
         }
 
         // find most recent OTP
-        const recentOTP = await OTP.find({ email }).sort({ createdAt: -1 }).limit(1)
+        const recentOTP = await OTP.findOne({ email }).sort({ createdAt: -1 }).limit(1)
 
         // validate OTP
         if (recentOTP.length == 0) {
@@ -257,7 +259,7 @@ exports.changePassword = async (req, res) => {
         const { password, newPassword, newConfirmPassword, token } = req.body;
 
         // token not present
-        if(!token) {
+        if (!token) {
             return res.status(404).json({
                 success: false,
                 message: 'token not found',

@@ -1,97 +1,140 @@
-const Course = require('../models/Course')
-const User = require('../models/User')
-const Category = require('../models/Category')
+const Course = require("../models/Course")
+const Category = require("../models/Category")
+const Section = require("../models/Section")
+const SubSection = require("../models/SubSection")
+const User = require("../models/User")
+const { uploadToCloudinary } = require("../utils/Uploader")
+const CourseProgress = require("../models/CourseProgress")
+const { convertSecondsToDuration } = require("../utils/secToDuration")
 require('dotenv').config()
-const uploadToCloudinary = require('../utils/Uploader')
 
-
-// create course
+// Function to create a new course
 exports.createCourse = async (req, res) => {
     try {
-        // fetch data from req body
-        const {
+
+        // Get user ID from request object
+        const userId = req.user.id
+
+        // Get all required fields from request body
+        let {
             courseName,
             courseDescription,
             whatYouWillLearn,
             price,
-            tag,
+            tag: _tag,
             category,
-        } = req.body;
+            status,
+            instructions: _instructions,
+        } = req.body
 
-        // fetch thumbnail
-        const { thumbnail } = req.files.image;
+        // Get thumbnail image from request files
+        const thumbnail = req.files.thumbnailImage
 
-        // validate the data
-        if (!courseName || !courseDescription || !whatYouWillLearn || !price || !tag || !category) {
-            return res.status().json({
+        // Convert the tag and instructions from stringified Array to Array
+        const tagData = JSON.parse(_tag)
+        const instructions = JSON.parse(_instructions)
+
+        // console.log("tag", tag)
+        // console.log("instructions", instructions)
+
+        // Check if any of the required fields are missing
+        if (
+            !courseName ||
+            !courseDescription ||
+            !whatYouWillLearn ||
+            !price ||
+            !tagData.length ||
+            !thumbnail ||
+            !category,
+            !instructions.length
+        ) {
+            return res.status(400).json({
                 success: false,
-                message: 'Please fill all the entry of tags'
+                message: "All Fields are Mandatory",
             })
         }
 
-        // check for instructor
-        const { userId } = req.body;
-        const instructorDetails = await User.findById(userId)
+        if (!status || status === undefined) {
+            status = "Draft"
+        }
+
+        // Check if the user is an instructor
+        const instructorDetails = await User.findOne({
+            _id: userId,
+            accountType: "Instructor",
+        })
 
         if (!instructorDetails) {
-            return res.status().json({
+            return res.status(404).json({
                 success: false,
-                message: 'Instructor details not found'
+                message: "Instructor Details Not Found",
             })
         }
 
-        // validate category
+        // Check if the tag given is valid
         const categoryDetails = await Category.findById(category)
         if (!categoryDetails) {
-            return res.status().json({
+            return res.status(404).json({
                 success: false,
-                message: 'Tag details not found'
+                message: "Category Details Not Found",
             })
         }
 
+        // Upload the Thumbnail to Cloudinary
+        const thumbnailImage = await uploadToCloudinary(
+            thumbnail,
+            process.env.FOLDER_NAME
+        )
 
-        // insert to database
-        const savedData = Course.create({})
+        console.log('upload to cloudinary success', thumbnailImage)
 
-        // upload image to cloudinary
-        const thumbnailImage = await uploadToCloudinary(thumbnail, process.env.CLOUDINARY_FOLDER_NAME)
-
-        // create an entry for new course
+        // Create a new course with the given details
         const newCourse = await Course.create({
             courseName,
             courseDescription,
             instructor: instructorDetails._id,
-            whatYouWillLearn,
+            whatYouWillLearn: whatYouWillLearn,
             price,
-            thumbnail: thumbnailImage.secure_url,
+            tag,
             category: categoryDetails._id,
+            thumbnail: thumbnailImage.secure_url,
+            status: status,
         })
 
-        // add the new course to the user schema of instructor
-        const updatedCourseData = await User.findAndUpdate(
-            { id: instructorDetails._id },
-            { $push: { courses: newCourse._id, } },
-            { new: true },
-        )
-
-        // update the category schema by putting the new courses in the specific category 
-        const updatedCategoryData = await Category.findOneAndUpdate(
-            { name: category },
-            { $push: { courses: newCourse._id } },
+        // Add the new course to the User Schema of the Instructor
+        await User.findByIdAndUpdate(
+            { _id: instructorDetails._id, },
+            {
+                $push: { courses: newCourse._id, },
+            },
             { new: true }
         )
 
-        return res.json(200).json({
+        // Add the new course to the Categories
+        const categoryDetails2 = await Category.findByIdAndUpdate(
+            { _id: category },
+            {
+                $push: { courses: newCourse._id, },
+            },
+            { new: true }
+        )
+        console.log("HEREEEEEEEE", categoryDetails2)
+
+        // Return the new course and a success message
+        res.status(200).json({
             success: true,
-            message: 'Course Created Successfully'
+            data: newCourse,
+            message: "Course Created Successfully",
         })
 
+    } catch (error) {
 
-    } catch (e) {
-
-        return res.json(400).json({
+        // Handle any errors that occur during the creation of the course
+        console.error(error)
+        res.status(500).json({
             success: false,
-            message: 'Error occured while creating course'
+            message: "Failed to create course",
+            error: error.message,
         })
     }
 }
@@ -111,7 +154,7 @@ exports.editCourse = async (req, res) => {
         if (req.files) {
             console.log("thumbnail update")
             const thumbnail = req.files.thumbnailImage
-            const thumbnailImage = await uploadImageToCloudinary(
+            const thumbnailImage = await uploadToCloudinary(
                 thumbnail,
                 process.env.FOLDER_NAME
             )
@@ -155,6 +198,7 @@ exports.editCourse = async (req, res) => {
             message: "Course updated successfully",
             data: updatedCourse,
         })
+
     } catch (error) {
         console.error(error)
         res.status(500).json({
@@ -186,6 +230,7 @@ exports.getAllCourses = async (req, res) => {
             success: true,
             data: allCourses,
         })
+
     } catch (error) {
         console.log(error)
         return res.status(404).json({
@@ -311,6 +356,7 @@ exports.getCourseDetails = async (req, res) => {
     }
 }
 
+// getFukkCourseDetails
 exports.getFullCourseDetails = async (req, res) => {
     try {
         const { courseId } = req.body
@@ -421,7 +467,7 @@ exports.deleteCourse = async (req, res) => {
         }
 
         // Unenroll students from the course
-        const studentsEnrolled = course.studentsEnroled
+        const studentsEnrolled = course.studentsEnrolled
         for (const studentId of studentsEnrolled) {
             await User.findByIdAndUpdate(studentId, {
                 $pull: { courses: courseId },

@@ -1,9 +1,10 @@
 const User = require('../models/User')
 const mailSender = require('../utils/mailSender')
 const bcrypt = require('bcrypt')
+const crypto = require('crypto')
+
 
 // reset password token
-
 exports.resetPasswordToken = async (req, res) => {
 
     try {
@@ -20,7 +21,7 @@ exports.resetPasswordToken = async (req, res) => {
         }
 
         // generate token
-        const token = crypto.randomUUID();
+        const token = crypto.randomBytes(20).toString("hex");
 
         // update user by providing the token and expireation time
         const updatedUserData = await User.findOneAndUpdate(
@@ -34,12 +35,13 @@ exports.resetPasswordToken = async (req, res) => {
 
         // create url
         const url = `http://localhost:3000/update-password/${token}`
+        // const url = `https://studynotion-edtech-project.vercel.app/update-password/${token}`
 
         // send mail containing the url
         await mailSender(
             email,
             "Password Reset Link",
-            `Password reset link: ${url}`
+            `Your Link for email verification is ${url}. Please click this url to reset your password.`
         )
 
         // return response
@@ -59,7 +61,6 @@ exports.resetPasswordToken = async (req, res) => {
 
 
 // reset password
-
 exports.resetPassword = async (req, res) => {
 
     try {
@@ -128,6 +129,7 @@ exports.resetPassword = async (req, res) => {
         return res.json({
             success: false,
             message: 'error occured while resetting the password',
+            error: e.message,
         })
     }
 }

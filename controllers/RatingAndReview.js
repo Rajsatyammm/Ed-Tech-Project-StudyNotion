@@ -68,7 +68,8 @@ exports.createRating = async (req, res) => {
         // insert in Course schema
         const updatedCourse = await Course.findByIdAndUpdate(
             courseId,
-            { $push: { ratingAndReviews: ratingsData._id } }
+            { $push: { ratingAndReviews: ratingsData._id } },
+            { new: true }
         )
 
         return res.status(200).json({
@@ -80,7 +81,8 @@ exports.createRating = async (req, res) => {
     } catch (e) {
         return res.status(500).json({
             success: false,
-            message: 'error occured while creating rating'
+            message: 'error occured while creating rating',
+            error: e.message,
         })
     }
 }

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose')
 const mailSender = require('../utils/mailSender')
+const emailTemplate = require('../mail/template/emailVerificationTemplate')
 
 
 const OTPSchema = new mongoose.Schema(
@@ -15,25 +16,34 @@ const OTPSchema = new mongoose.Schema(
         createdAt: {
             type: Date,
             default: Date.now(),
-            expiresIn: 5*60,
+            expiresIn: 5 * 60,
         },
-        
+
     }
 )
 
 async function sendVerificationEmail(email, otp) {
     try {
 
-        const mailResponse = await mailSender(email, "Verification Email from rajsatyammm", otp)
-        console.log('Email send Successfully', mailResponse)
-    } catch(e) {
+        const mailResponse = await mailSender(
+            email,
+            "Verification Email from rajsatyammm",
+            emailTemplate(otp)
+        )
+        console.log('Email send Successfully', mailResponse.response)
+
+    } catch (e) {
         console.log('error occured while sending mail', e)
         throw error
     }
 }
 
-OTPSchema.pre('save', async function(next) {
-    await sendVerificationEmail(this.email, this.otp);
+// pre-save hook
+OTPSchema.pre('save', async function (next) {
+
+    // only send email if the new document is created
+    if(this.isNew)
+        await sendVerificationEmail(this.email, this.otp);
     next()
 })
 

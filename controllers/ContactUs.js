@@ -1,41 +1,33 @@
 const mailSender = require('../utils/mailSender')
+const { contactUsEmail } = require('../mail/template/contactFormRes')
 
-exports.contactUs = async (req, res) => {
+exports.contactUsController = async (req, res) => {
+
+    // fetch data from req body
+    const { email, firstname, lastname, message, phoneNo } = req.body
+
+    // console.log(req.body)
     try {
 
-        // fetch data from req body
-        const { firstName, lastName, email, message, phoneNo } = req.body
-
-        // validate 
-        if (!firstName || !lastName || !email || !message || !phoneNo) {
-            return res.status(400).json({
-                success: false,
-                message: 'All fields are required to fill',
-            })
-        }
-
-        // send mail to myself
-        const mail = await mailSender(process.env.MY_EMAIL,
-            `Email recieved from ${email}`,
-            message
+        const emailRes = await mailSender(
+            email,
+            "Your Data send successfully",
+            contactUsEmail(email, firstname, lastname, message, phoneNo)
         )
 
-        // send mail to user
-        const mailData = await mailSender(email,
-            "Email from Raj",
-            "We have recieved your mail and will contact to you ASAP"
-        )
+        // console.log("Email Res ", emailRes)
 
-        return res.status(200).json({
+        return res.json({
             success: true,
-            message: 'Successfully sent response to the user',
+            message: "Email send successfully",
         })
 
-
-    } catch (e) {
-        return res.status(500).json({
+    } catch (error) {
+        console.log("Error", error)
+        console.log("Error message :", error.message)
+        return res.json({
             success: false,
-            message: 'error occured while sending mail form the contact us data',
+            message: "Something went wrong...",
         })
     }
 }

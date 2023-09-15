@@ -1,29 +1,35 @@
+const mongoose = require("mongoose")
 const Profile = require('../models/Profile')
 const User = require('../models/User')
 const Course = require('../models/Course')
+const CourseProgress = require("../models/CourseProgress")
+const { uploadToCloudinary } = require("../utils/Uploader")
+const { convertSecondsToDuration } = require("../utils/secToDuration")
 
 
+// update Profile
 exports.updateProfile = async (req, res) => {
     try {
 
-        // fetch data from req body
-        const { gender, dateOfBirth = "", about = "", contactNumber } = req.body
+        const {
+            firstName = "",
+            lastName = "",
+            dateOfBirth = "",
+            about = "",
+            contactNumber = "",
+            gender = "",
+        } = req.body
+        const id = req.user.id
 
-        // get user id
-        const userId = req.user.id
+        // Find the profile by id
+        const userDetails = await User.findById(id)
+        const profileDetails = await Profile.findById(userDetails.additionalDetails)
 
-        // validation
-        if (!gender || !contactNumber || !userId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Please fill all the details'
-            })
-        }
-
-        // find profile
-        const userDetails = await User.findById(userId)
-        const profileId = userDetails.profileDetails
-        const profileDetails = await Profile.findById(profileId)
+        const user = await User.findByIdAndUpdate(id, {
+            firstName,
+            lastName,
+        })
+        await user.save()
 
         // update profile
         profileDetails.gender = gender
@@ -33,13 +39,17 @@ exports.updateProfile = async (req, res) => {
 
         await profileDetails.save()
 
-        // return response
-        return res.status(200).json({
-            success: true,
-            message: 'profile updated successfully',
-            profileDetails: profileDetails,
-        })
+        // Find the updated user details
+        const updatedUserDetails = await User.findById(id)
+            .populate("additionalDetails")
+            .exec()
 
+        // return response
+        return res.json({
+            success: true,
+            message: "Profile updated successfully",
+            updatedUserDetails,
+        })
 
     } catch (e) {
 
@@ -50,64 +60,62 @@ exports.updateProfile = async (req, res) => {
     }
 }
 
-
 // delete account
 exports.deleteAccount = async (req, res) => {
+
     try {
+        // fetch data
+        const id = req.user.id
+        // console.log(id)
 
-        // get id
-        const userId = req.user.id
+        // find the user
+        const user = await User.findById(id)
 
-        // validation of id
-        if (!userId) {
-            return res.json({
+        if (!user) {
+            return res.status(404).json({
                 success: false,
-                mesage: 'please enter user id'
+                message: "User not found",
             })
         }
 
-        const userData = await User.findById(userId)
+        // Delete Assosiated Profile with the User
+        await Profile.findByIdAndDelete({
+            _id: new mongoose.Types.ObjectId(user.additionalDetails),
+        })
 
-        if (!data) {
-            return res.status(400).json({
-                success: false,
-                message: `User not found`,
-            })
+        // delete the course associated with the userID
+        for (const courseId of user.courses) {
+            await Course.findByIdAndUpdate(
+                courseId,
+                { $pull: { studentsEnroled: id } },
+                { new: true }
+            )
         }
 
-        // delete profile
-        await Profile.findByIdAndDelete({ _id: userData.additionalDetails })
+        // Now Delete User
+        await User.findByIdAndDelete({ _id: id })
+        res.status(200).json({
+            success: true,
+            message: "User deleted successfully",
+        })
 
-        // TODO: unenroll from all the courses of the particular student
-
-        // const courseData = userData.courses
-        // courseData.map(async (courseId) => {
-        //     await Course.findByIdAndRemove(
-        //         { courseId },
-        //         { $pull: { studentsEnrolled: userData._id } },
-        //         { new: true }
-        //     )
-        // })
-
-        // await User.findByIdAndDelete({courses: })
-
-        // user delete
-        await User.findByIdAndDelete({ _id: userId })
+        await CourseProgress.deleteMany({ userId: id })
 
         // return response
         return res.status(200).json({
             success: true,
-            message: 'User deleted Successfully'
+            message: "User deleted successfully"
         })
 
-    } catch (e) {
-        return res.json({
+    } catch (error) {
+
+        console.log(error)
+        res.status(500).json({
             success: false,
-            message: 'error occured while deleting the profile'
+            message: "User Cannot be deleted successfully"
         })
     }
 }
-
 
 // getalluserdetails
 exports.getAllUserDetails = async (req, res) => {
@@ -131,16 +139,18 @@ exports.getAllUserDetails = async (req, res) => {
     } catch (e) {
         return res.status(500).json({
             success: true,
-            message: 'error occured while getting all the user details'
+            message: 'error occured while getting all the user details',
+            error: e.message,
         })
     }
 }
 
+// updatePicture
 exports.updateDisplayPicture = async (req, res) => {
     try {
         const displayPicture = req.files.displayPicture
         const userId = req.user.id
-        const image = await uploadImageToCloudinary(
+        const image = await uploadToCloudinary(
             displayPicture,
             process.env.FOLDER_NAME,
             1000,
@@ -165,6 +175,7 @@ exports.updateDisplayPicture = async (req, res) => {
     }
 }
 
+// getEnrolledCourse
 exports.getEnrolledCourses = async (req, res) => {
     try {
         const userId = req.user.id
@@ -181,25 +192,27 @@ exports.getEnrolledCourses = async (req, res) => {
                 },
             })
             .exec()
+
         userDetails = userDetails.toObject()
         var SubsectionLength = 0
+
         for (var i = 0; i < userDetails.courses.length; i++) {
             let totalDurationInSeconds = 0
             SubsectionLength = 0
+
             for (var j = 0; j < userDetails.courses[i].courseContent.length; j++) {
-                totalDurationInSeconds += userDetails.courses[i].courseContent[
-                    j
-                ].subSection.reduce((acc, curr) => acc + parseInt(curr.timeDuration), 0)
-                userDetails.courses[i].totalDuration = convertSecondsToDuration(
-                    totalDurationInSeconds
-                )
+                totalDurationInSeconds += userDetails.courses[i].courseContent[j]
+                    .subSection.reduce((acc, curr) => acc + parseInt(curr.timeDuration), 0)
+                userDetails.courses[i].totalDuration = convertSecondsToDuration(totalDurationInSeconds)
                 SubsectionLength +=
                     userDetails.courses[i].courseContent[j].subSection.length
             }
+
             let courseProgressCount = await CourseProgress.findOne({
                 courseID: userDetails.courses[i]._id,
                 userId: userId,
             })
+
             courseProgressCount = courseProgressCount?.completedVideos.length
             if (SubsectionLength === 0) {
                 userDetails.courses[i].progressPercentage = 100
@@ -223,6 +236,7 @@ exports.getEnrolledCourses = async (req, res) => {
             success: true,
             data: userDetails.courses,
         })
+
     } catch (error) {
         return res.status(500).json({
             success: false,
@@ -231,12 +245,13 @@ exports.getEnrolledCourses = async (req, res) => {
     }
 }
 
+// instructorDashboard
 exports.instructorDashboard = async (req, res) => {
     try {
         const courseDetails = await Course.find({ instructor: req.user.id })
 
         const courseData = courseDetails.map((course) => {
-            const totalStudentsEnrolled = course.studentsEnroled.length
+            const totalStudentsEnrolled = course.studentsEnrolled.length
             const totalAmountGenerated = totalStudentsEnrolled * course.price
 
             // Create a new object with the additional fields
@@ -253,6 +268,7 @@ exports.instructorDashboard = async (req, res) => {
         })
 
         res.status(200).json({ courses: courseData })
+
     } catch (error) {
         console.error(error)
         res.status(500).json({ message: "Server Error" })
